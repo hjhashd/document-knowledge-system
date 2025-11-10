@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
+import { cn } from "@/lib/utils"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -33,7 +34,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
             <div className="flex h-screen bg-background overflow-hidden">
               <Sidebar />
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className={cn("flex-1 flex flex-col overflow-hidden transition-all duration-300")}>
                 <Header />
                 <main className="flex-1 main-scroll">{children}</main>
               </div>

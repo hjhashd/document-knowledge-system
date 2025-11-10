@@ -3,15 +3,36 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Bell, User, Moon, Sun, Settings } from "lucide-react"
+import { Search, Bell, User, Moon, Sun, Settings, PanelLeft, PanelLeftClose } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useState } from "react"
 
 export function Header() {
   const { theme, setTheme } = useTheme()
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed)
+    // 触发自定义事件来通知sidebar组件
+    window.dispatchEvent(new CustomEvent('toggleSidebar'))
+  }
 
   return (
     <header className="h-16 border-b border-border bg-background px-6 flex items-center justify-between">
       <div className="flex items-center space-x-4 flex-1">
+        {/* 收起/展开按钮 - 放在搜索框的最左侧 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 rounded-full bg-background border shadow-sm hover:bg-accent"
+          onClick={toggleSidebar}
+        >
+          {isSidebarCollapsed ? 
+            <PanelLeft className="h-4 w-4" /> : 
+            <PanelLeftClose className="h-4 w-4" />
+          }
+        </Button>
+        
         <div className="relative max-w-md flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
