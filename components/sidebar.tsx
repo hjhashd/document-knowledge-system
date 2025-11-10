@@ -102,7 +102,16 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <ScrollArea className="flex-1 px-3 py-4">
+      <ScrollArea
+        className="flex-1 px-3 py-4 sidebar-scroll"
+        onWheel={(e) => {
+          // 侧边栏滚动事件隔离，避免影响主内容或页面
+          e.stopPropagation()
+        }}
+        onScroll={(e) => {
+          e.stopPropagation()
+        }}
+      >
         <nav className="space-y-1">
           {navigation.map((item, index) => {
             // Single navigation item
@@ -115,8 +124,8 @@ export function Sidebar() {
                   className={cn(
                     "w-full justify-start text-sm font-medium",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground",
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent-hover transition-colors"
+                      : "text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors",
                   )}
                   asChild
                 >
@@ -146,8 +155,8 @@ export function Sidebar() {
                       className={cn(
                         "w-full justify-start text-sm font-medium ml-2",
                         isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground",
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent-hover transition-colors"
+                          : "text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors",
                       )}
                       asChild
                     >

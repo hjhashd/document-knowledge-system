@@ -1,19 +1,11 @@
 import type React from "react"
-import { Sidebar } from "@/components/sidebar"
-import { Header } from "@/components/header"
 
 interface PageLayoutProps {
   children: React.ReactNode
 }
 
 export function PageLayout({ children }: PageLayoutProps) {
-  return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto">{children}</main>
-      </div>
-    </div>
-  )
+  // 全局布局已在 app/layout.tsx 中提供 Sidebar/Header/Main。
+  // 这里保持透明包装以兼容现有页面结构。
+  return <>{children}</>
 }

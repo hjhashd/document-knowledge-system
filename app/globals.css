@@ -38,6 +38,7 @@
   --sidebar-primary-foreground: oklch(0.35 0 0);
   --sidebar-accent: oklch(0.65 0.25 330);
   --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-accent-hover: oklch(0.6 0.25 330); /* 新增：侧边栏激活项悬停颜色 */
   --sidebar-border: oklch(0.92 0.005 330);
   --sidebar-ring: oklch(0.45 0.22 350 / 0.5);
 }
@@ -126,4 +127,28 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ---- Scroll layout tuning ---- */
+html,
+body {
+  height: 100%;
+  /* 禁用页面级滚动，滚动仅在各自容器中发生 */
+  overflow: hidden;
+}
+
+/* 主内容区专用滚动容器：仅垂直滚动，平滑过渡，移动端优化 */
+.main-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* 侧边栏专用滚动容器：仅垂直滚动，平滑过渡 */
+.sidebar-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
