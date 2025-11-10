@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -19,12 +20,8 @@ import {
   FileSpreadsheet,
   Presentation,
   Globe,
-  CheckCircle,
-  AlertCircle,
-  Clock,
   X,
   Settings,
-  Brain,
   Zap,
 } from "lucide-react"
 
@@ -33,11 +30,13 @@ interface UploadedFile {
   name: string
   size: number
   type: string
-  status: "uploading" | "processing" | "completed" | "error"
-  progress: number
-  extractedEntities?: number
-  extractedRelations?: number
-  processingTime?: string
+  preprocessingSettings?: {
+    enableOCR: boolean
+    enableDeskew: boolean
+    enableDenoise: boolean
+    enableBinarization: boolean
+    enableContrastEnhancement: boolean
+  }
 }
 
 const supportedFormats = [
@@ -57,6 +56,7 @@ const processingTemplates = [
 ]
 
 export function DocumentUpload() {
+  const router = useRouter()
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [dragActive, setDragActive] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState("general")
@@ -66,6 +66,13 @@ export function DocumentUpload() {
     enableKnowledgeGraph: true,
     confidenceThreshold: 0.8,
     customInstructions: "",
+    imagePreprocessing: {
+      enableOCR: true,
+      enableDeskew: false,
+      enableDenoise: false,
+      enableBinarization: false,
+      enableContrastEnhancement: false,
+    },
   })
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -90,71 +97,34 @@ export function DocumentUpload() {
 
   const handleFiles = (files: FileList) => {
     Array.from(files).forEach((file) => {
+      const isImage = file.type.includes("image")
       const newFile: UploadedFile = {
         id: Math.random().toString(36).substr(2, 9),
         name: file.name,
         size: file.size,
         type: file.type,
-        status: "uploading",
-        progress: 0,
+        preprocessingSettings: isImage ? {
+          enableOCR: extractionSettings.imagePreprocessing.enableOCR,
+          enableDeskew: extractionSettings.imagePreprocessing.enableDeskew,
+          enableDenoise: extractionSettings.imagePreprocessing.enableDenoise,
+          enableBinarization: extractionSettings.imagePreprocessing.enableBinarization,
+          enableContrastEnhancement: extractionSettings.imagePreprocessing.enableContrastEnhancement,
+        } : undefined,
       }
 
-      setUploadedFiles((prev) => [...prev, newFile])
+      // Create a proper URL for the uploaded file
+      const fileUrl = URL.createObjectURL(file)
+      const ocrText = `这是从文件 ${newFile.name} 中通过OCR技术提取的文本内容。
 
-      // Simulate upload and processing
-      simulateFileProcessing(newFile.id)
+文件处理已完成，包含 0 个实体和 0 个关系。
+
+处理时间：0秒
+
+您可以在右侧编辑器中对OCR识别的文本进行进一步的编辑和校对。`
+      
+      const navigateUrl = `/pdf-ocr-editor?fileName=${encodeURIComponent(newFile.name)}&fileUrl=${encodeURIComponent(fileUrl)}&ocrText=${encodeURIComponent(ocrText)}`
+      router.push(navigateUrl)
     })
-  }
-
-  const simulateFileProcessing = (fileId: string) => {
-    // Simulate upload progress
-    const uploadInterval = setInterval(() => {
-      setUploadedFiles((prev) =>
-        prev.map((file) => {
-          if (file.id === fileId && file.status === "uploading") {
-            const newProgress = Math.min(file.progress + Math.random() * 20, 100)
-            if (newProgress >= 100) {
-              clearInterval(uploadInterval)
-              // Start processing phase
-              setTimeout(() => {
-                setUploadedFiles((prev) =>
-                  prev.map((f) => (f.id === fileId ? { ...f, status: "processing", progress: 0 } : f)),
-                )
-                simulateProcessing(fileId)
-              }, 500)
-              return { ...file, progress: 100, status: "uploading" }
-            }
-            return { ...file, progress: newProgress }
-          }
-          return file
-        }),
-      )
-    }, 200)
-  }
-
-  const simulateProcessing = (fileId: string) => {
-    const processingInterval = setInterval(() => {
-      setUploadedFiles((prev) =>
-        prev.map((file) => {
-          if (file.id === fileId && file.status === "processing") {
-            const newProgress = Math.min(file.progress + Math.random() * 15, 100)
-            if (newProgress >= 100) {
-              clearInterval(processingInterval)
-              return {
-                ...file,
-                progress: 100,
-                status: "completed",
-                extractedEntities: Math.floor(Math.random() * 50) + 10,
-                extractedRelations: Math.floor(Math.random() * 30) + 5,
-                processingTime: `${Math.floor(Math.random() * 30) + 10}秒`,
-              }
-            }
-            return { ...file, progress: newProgress }
-          }
-          return file
-        }),
-      )
-    }, 300)
   }
 
   const removeFile = (fileId: string) => {
@@ -313,10 +283,31 @@ export function DocumentUpload() {
                           <Progress value={file.progress} className="h-2 mb-2" />
 
                           {file.status === "completed" && (
-                            <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                              <span>实体: {file.extractedEntities}</span>
-                              <span>关系: {file.extractedRelations}</span>
-                              <span>用时: {file.processingTime}</span>
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                <span>实体: {file.extractedEntities}</span>
+                                <span>关系: {file.extractedRelations}</span>
+                                <span>用时: {file.processingTime}</span>
+                              </div>
+                              {file.preprocessingSettings && (
+                                <div className="flex flex-wrap gap-1 text-xs">
+                                  {file.preprocessingSettings.enableOCR && (
+                                    <Badge variant="secondary" className="text-xs">OCR</Badge>
+                                  )}
+                                  {file.preprocessingSettings.enableDeskew && (
+                                    <Badge variant="secondary" className="text-xs">纠偏</Badge>
+                                  )}
+                                  {file.preprocessingSettings.enableDenoise && (
+                                    <Badge variant="secondary" className="text-xs">降噪</Badge>
+                                  )}
+                                  {file.preprocessingSettings.enableBinarization && (
+                                    <Badge variant="secondary" className="text-xs">二值化</Badge>
+                                  )}
+                                  {file.preprocessingSettings.enableContrastEnhancement && (
+                                    <Badge variant="secondary" className="text-xs">对比度</Badge>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -452,6 +443,110 @@ export function DocumentUpload() {
                   }
                   className="min-h-[100px]"
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Image Preprocessing Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <ImageIcon className="w-5 h-5 text-primary" />
+                <span>图片预处理设置</span>
+              </CardTitle>
+              <CardDescription>配置图像文档的预处理选项（仅对图像文件生效）</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enable-ocr"
+                    checked={extractionSettings.imagePreprocessing.enableOCR}
+                    onCheckedChange={(checked) =>
+                      setExtractionSettings((prev) => ({
+                        ...prev,
+                        imagePreprocessing: {
+                          ...prev.imagePreprocessing,
+                          enableOCR: checked as boolean,
+                        },
+                      }))
+                    }
+                  />
+                  <Label htmlFor="enable-ocr">启用OCR文字识别</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enable-deskew"
+                    checked={extractionSettings.imagePreprocessing.enableDeskew}
+                    onCheckedChange={(checked) =>
+                      setExtractionSettings((prev) => ({
+                        ...prev,
+                        imagePreprocessing: {
+                          ...prev.imagePreprocessing,
+                          enableDeskew: checked as boolean,
+                        },
+                      }))
+                    }
+                  />
+                  <Label htmlFor="enable-deskew">启用图像纠偏（自动校正倾斜）</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enable-denoise"
+                    checked={extractionSettings.imagePreprocessing.enableDenoise}
+                    onCheckedChange={(checked) =>
+                      setExtractionSettings((prev) => ({
+                        ...prev,
+                        imagePreprocessing: {
+                          ...prev.imagePreprocessing,
+                          enableDenoise: checked as boolean,
+                        },
+                      }))
+                    }
+                  />
+                  <Label htmlFor="enable-denoise">启用图像降噪</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enable-binarization"
+                    checked={extractionSettings.imagePreprocessing.enableBinarization}
+                    onCheckedChange={(checked) =>
+                      setExtractionSettings((prev) => ({
+                        ...prev,
+                        imagePreprocessing: {
+                          ...prev.imagePreprocessing,
+                          enableBinarization: checked as boolean,
+                        },
+                      }))
+                    }
+                  />
+                  <Label htmlFor="enable-binarization">启用二值化处理</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enable-contrast-enhancement"
+                    checked={extractionSettings.imagePreprocessing.enableContrastEnhancement}
+                    onCheckedChange={(checked) =>
+                      setExtractionSettings((prev) => ({
+                        ...prev,
+                        imagePreprocessing: {
+                          ...prev.imagePreprocessing,
+                          enableContrastEnhancement: checked as boolean,
+                        },
+                      }))
+                    }
+                  />
+                  <Label htmlFor="enable-contrast-enhancement">启用对比度增强</Label>
+                </div>
+              </div>
+
+              <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+                <p><strong>提示：</strong>这些预处理选项仅对图像文件（PNG、JPEG、TIFF、BMP等）生效。</p>
+                <p>OCR文字识别默认启用，其他预处理选项可根据需要选择。</p>
               </div>
             </CardContent>
           </Card>
