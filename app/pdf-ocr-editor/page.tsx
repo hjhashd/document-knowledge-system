@@ -29,7 +29,9 @@ interface PDFPreviewProps {
 }
 
 interface OnlyOfficeEditorProps {
-  fileName: string
+  docUrl: string
+  docName?: string
+  callbackUrl?: string
 }
 
 function PDFPreview({ fileUrl, fileName }: PDFPreviewProps) {
@@ -164,33 +166,97 @@ function PDFPreview({ fileUrl, fileName }: PDFPreviewProps) {
   )
 }
 
-function OnlyOfficeEditor({ fileName }: OnlyOfficeEditorProps) {
+function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const editorRef = useRef<any>(null)
+  const makeKeyFromUrl = (url: string) => {
+    let h = 0
+    for (let i = 0; i < url.length; i++) {
+      h = (h * 31 + url.charCodeAt(i)) >>> 0
+    }
+    return h.toString(36)
+  }
 
-  // 模拟OnlyOffice加载
+  const toggleFullscreen = () => setIsFullscreen(!isFullscreen)
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 2000)
-    
-    return () => clearTimeout(timer)
-  }, [])
-
-  const handleReload = () => {
     setIsLoading(true)
     setError(null)
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 1500)
-  }
 
-  // 全屏切换
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen)
-  }
+    if (!docUrl) {
+      setError('缺少文档URL（docUrl）')
+      setIsLoading(false)
+      return
+    }
+
+    const fileExt = docUrl.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase() || 'docx'
+    const title = docName || docUrl.split('/').pop() || `文档-${Date.now()}`
+    const cbUrl = callbackUrl || '/onlyoffice-callback'
+
+    const init = () => {
+      try {
+        // @ts-ignore
+        const DocsAPI = (window as any).DocsAPI
+        if (!DocsAPI) {
+          setError('OnlyOffice API 未加载')
+          setIsLoading(false)
+          return
+        }
+        if (editorRef.current && typeof editorRef.current.destroyEditor === 'function') {
+          editorRef.current.destroyEditor()
+          editorRef.current = null
+        }
+        const config = {
+          document: { fileType: fileExt, key: `doc-${makeKeyFromUrl(docUrl)}`, title, url: docUrl },
+          documentType: 'word',
+          editorConfig: { mode: 'edit', callbackUrl: cbUrl }
+        }
+        // @ts-ignore
+        editorRef.current = new DocsAPI.DocEditor('onlyoffice-editor-container', config)
+        setIsLoading(false)
+      } catch (e: any) {
+        setError(e?.message || String(e))
+        setIsLoading(false)
+      }
+    }
+
+    // 加载 DocsAPI 脚本（来源于文档服务器）
+    // 如需修改地址，可通过 query 参数 docsApi 指定
+    const defaultApi = 'https://ai.faithindata.com.cn/office/web-apps/apps/api/documents/api.js'
+    const docsApi = defaultApi
+    // 已加载则直接初始化
+    // @ts-ignore
+    if ((window as any).DocsAPI) {
+      init()
+      return
+    }
+    let scriptEl = document.querySelector('script[data-onlyoffice-api]') as HTMLScriptElement | null
+    if (!scriptEl) {
+      scriptEl = document.createElement('script')
+      scriptEl.type = 'text/javascript'
+      scriptEl.src = docsApi
+      scriptEl.setAttribute('data-onlyoffice-api', 'true')
+      scriptEl.onload = init
+      scriptEl.onerror = () => {
+        setError('无法加载 OnlyOffice API 脚本')
+        setIsLoading(false)
+      }
+      document.head.appendChild(scriptEl)
+    } else {
+      scriptEl.addEventListener('load', init, { once: true })
+    }
+
+    return () => {
+      try {
+        if (editorRef.current && typeof editorRef.current.destroyEditor === 'function') {
+          editorRef.current.destroyEditor()
+        }
+      } catch {}
+      editorRef.current = null
+    }
+  }, [docUrl, docName, callbackUrl])
 
   return (
     <Card className={`h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
@@ -201,17 +267,10 @@ function OnlyOfficeEditor({ fileName }: OnlyOfficeEditorProps) {
             <CardTitle className="text-lg">Word 文档编辑</CardTitle>
           </div>
           <div className="flex items-center space-x-2">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              OnlyOffice
-            </Badge>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">OnlyOffice</Badge>
             <Button variant="outline" size="sm" onClick={toggleFullscreen}>
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
-            {error && (
-              <Button variant="outline" size="sm" onClick={handleReload}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            )}
           </div>
         </div>
       </CardHeader>
@@ -225,57 +284,14 @@ function OnlyOfficeEditor({ fileName }: OnlyOfficeEditorProps) {
               </div>
             </div>
           )}
-          
           {error ? (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center">
               <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">加载失败</h3>
               <p className="text-sm text-gray-500 mb-4">{error}</p>
-              <Button onClick={handleReload} variant="outline">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                重新加载
-              </Button>
             </div>
           ) : (
-            <div className="w-full h-full flex flex-col">
-              {/* OnlyOffice工具栏占位 */}
-              <div className="h-12 border-b bg-gray-50 flex items-center px-4">
-                <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="text-xs">文件</Badge>
-                  <Badge variant="outline" className="text-xs">开始</Badge>
-                  <Badge variant="outline" className="text-xs">插入</Badge>
-                  <Badge variant="outline" className="text-xs">布局</Badge>
-                  <Badge variant="outline" className="text-xs">引用</Badge>
-                </div>
-              </div>
-              
-              {/* OnlyOffice编辑器内容区占位 */}
-              <div className="flex-1 p-8 bg-white overflow-auto">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold mb-4">{fileName.replace(/\.[^/.]+$/, "")}</h1>
-                  <p className="text-gray-600 mb-4">
-                    这是OnlyOffice编辑器的占位区域。在实际应用中，这里将集成OnlyOffice文档编辑器，
-                    允许用户对Word文档进行实时编辑。
-                  </p>
-                  <p className="text-gray-600 mb-4">
-                    OnlyOffice编辑器将提供以下功能：
-                  </p>
-                  <ul className="list-disc pl-5 text-gray-600 space-y-2">
-                    <li>富文本编辑功能</li>
-                    <li>实时协作编辑</li>
-                    <li>版本历史管理</li>
-                    <li>评论和修订功能</li>
-                    <li>文档格式保持</li>
-                  </ul>
-                  <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-600">
-                      <strong>注意：</strong> 此区域预留用于集成OnlyOffice文档编辑器。
-                      实际集成需要配置OnlyOffice服务器并设置相应的API。
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div id="onlyoffice-editor-container" className="w-full h-full" />
           )}
         </div>
       </CardContent>
@@ -289,6 +305,9 @@ export default function PDFOCREditorPage() {
     fileName: "",
     fileUrl: ""
   })
+  const [docUrl, setDocUrl] = useState<string>("")
+  const [docName, setDocName] = useState<string>("")
+  const [callbackUrl, setCallbackUrl] = useState<string>("/onlyoffice-callback")
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'split' | 'pdf' | 'editor'>('split')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -309,12 +328,26 @@ export default function PDFOCREditorPage() {
   // 从URL参数获取文件信息
   useEffect(() => {
     const fileName = searchParams.get('fileName') || "sample.pdf"
-    const fileUrl = searchParams.get('fileUrl') || "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+    const fileUrlParam = searchParams.get('fileUrl') || ""
+    const docUrlParam = searchParams.get('docUrl') || ""
+    const baseUrl = process.env.NEXT_PUBLIC_NGROK_BASE_URL || ""
+    const defaultCallbackUrl = baseUrl ? `${baseUrl}/onlyoffice-callback` : "/onlyoffice-callback"
+    const docNameParam = searchParams.get('docName') || (docUrlParam ? (docUrlParam.split('/').pop() || "") : "")
+    const cbUrlParam = searchParams.get('callbackUrl') || defaultCallbackUrl
+    
+    // 将自定义文件名添加到回调 URL 中
+    const finalCallbackUrl = docNameParam ? `${cbUrlParam}${cbUrlParam.includes('?') ? '&' : '?'}fileName=${encodeURIComponent(docNameParam)}` : cbUrlParam
+
+    // 如果没有fileUrl，则使用docUrl作为预览URL
+    const finalFileUrl = fileUrlParam || docUrlParam || "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
 
     setFileData({
       fileName,
-      fileUrl
+      fileUrl: finalFileUrl
     })
+    setDocUrl(docUrlParam)
+    setDocName(docNameParam)
+    setCallbackUrl(finalCallbackUrl)
 
     // 模拟加载过程
     setTimeout(() => {
@@ -394,7 +427,9 @@ export default function PDFOCREditorPage() {
               {/* 右侧 - OnlyOffice编辑器区域 */}
               <div className="w-full lg:w-1/2 h-full transition-all duration-300">
                 <OnlyOfficeEditor 
-                  fileName={fileData.fileName}
+                  docUrl={docUrl}
+                  docName={docName}
+                  callbackUrl={callbackUrl}
                 />
               </div>
             </div>
@@ -414,7 +449,9 @@ export default function PDFOCREditorPage() {
           {viewMode === 'editor' && (
             <div className="h-full">
               <OnlyOfficeEditor 
-                fileName={fileData.fileName}
+                docUrl={docUrl}
+                docName={docName}
+                callbackUrl={callbackUrl}
               />
             </div>
           )}

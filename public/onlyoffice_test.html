@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnlyOffice Test</title>
+    <!-- 动态引入 OnlyOffice API 脚本：优先使用开发环境的文档服务器地址，失败则尝试相对路径 -->
+    <script type="text/javascript">
+      (function() {
+        var devUrl = 'https://ai.faithindata.com.cn/office/web-apps/apps/api/documents/api.js';
+        var fallbackUrl = '/office/web-apps/apps/api/documents/api.js';
+        var s = document.createElement('script');
+        s.type = 'text/javascript';
+        s.src = devUrl;
+        s.onerror = function () {
+          var s2 = document.createElement('script');
+          s2.type = 'text/javascript';
+          s2.src = fallbackUrl;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrolling if content overflows */
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        #onlyoffice-editor-container {
+            flex-grow: 1; /* Make the editor container take up remaining space */
+            height: auto; /* Override the 100vh, flex-grow will handle height */
+        }
+    </style>
+</head>
+<body>
+    <h1>OnlyOffice 测试页面</h1>
+    <div>
+        <input type="file" id="docxFileInput" accept=".docx">
+        <button id="loadDocxButton">加载DOCX文件</button>
+    </div>
+    <div style="margin-top: 8px;">
+        <input type="text" id="docxUrlInput" style="width: 60%;" placeholder="输入可公网/内网访问的 DOCX 文件 URL，例如：https://hairy-oratorically-marita.ngrok-free.dev/files/test.docx">
+        <button id="loadDocxUrlButton">用远程URL打开</button>
+    </div>
+    <div id="onlyoffice-editor-container" style="width: 100%;"></div>
+
+    <script type="text/javascript">
+        let docEditor = null; // 声明一个全局变量来存储编辑器实例
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const docxFileInput = document.getElementById('docxFileInput');
+            const loadDocxButton = document.getElementById('loadDocxButton');
+            const docxUrlInput = document.getElementById('docxUrlInput');
+            const loadDocxUrlButton = document.getElementById('loadDocxUrlButton');
+
+            loadDocxButton.addEventListener('click', function() {
+                const file = docxFileInput.files[0];
+                if (!file) {
+                    alert('请选择一个DOCX文件！');
+                    return;
+                }
+
+                if (file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    alert('请选择一个有效的DOCX文件！');
+                    return;
+                }
+
+                const fileUrl = URL.createObjectURL(file);
+                const fileName = file.name;
+                const fileExtension = fileName.split('.').pop();
+
+                // 如果已经有编辑器实例，先销毁它
+                if (docEditor) {
+                    if (typeof docEditor.destroyEditor === 'function') {
+                        docEditor.destroyEditor();
+                    }
+                    docEditor = null;
+                }
+
+                var config = {
+                    "document": {
+                        "fileType": fileExtension,
+                        "key": `test-document-key-${Date.now()}`, // 使用时间戳作为唯一标识符
+                        "title": fileName,
+                        "url": fileUrl // 使用创建的Blob URL
+                    },
+                    "documentType": "word",
+                    "editorConfig": {
+                        "mode": "edit", // 允许编辑
+                        "callbackUrl": "https://hairy-oratorically-marita.ngrok-free.dev/onlyoffice-callback", // 替换为你的后端回调URL
+                    }
+                };
+
+                // 初始化 DocsAPI.DocEditor
+                if (window.DocsAPI) {
+                    docEditor = new DocsAPI.DocEditor("onlyoffice-editor-container", config);
+                } else {
+                    console.error("DocsAPI is not loaded. Please check the script URL.");
+                }
+            });
+
+            // 使用远程 URL 打开（推荐用于快速验证，因为文档服务器可直接访问该 URL）
+            loadDocxUrlButton.addEventListener('click', function() {
+                const remoteUrl = (docxUrlInput.value || '').trim();
+                if (!remoteUrl) {
+                    alert('请输入一个可访问的 DOCX 文件 URL！');
+                    return;
+                }
+
+                const fileExtension = remoteUrl.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+                if (fileExtension !== 'docx') {
+                    alert('当前仅演示 DOCX（.docx）文件，请输入以 .docx 结尾的地址');
+                    return;
+                }
+
+                if (docEditor) {
+                    if (typeof docEditor.destroyEditor === 'function') {
+                        docEditor.destroyEditor();
+                    }
+                    docEditor = null;
+                }
+
+                var config = {
+                    document: {
+                        fileType: fileExtension,
+                        key: `test-document-key-${Date.now()}`,
+                        title: remoteUrl.split('/').pop() || `远程文档-${Date.now()}`,
+                        url: remoteUrl
+                    },
+                    documentType: 'word',
+                    editorConfig: {
+                        mode: 'edit',
+                        callbackUrl: 'https://hairy-oratorically-marita.ngrok-free.dev/onlyoffice-callback'
+                    }
+                };
+
+                if (window.DocsAPI) {
+                    docEditor = new DocsAPI.DocEditor('onlyoffice-editor-container', config);
+                } else {
+                    console.error('DocsAPI is not loaded. Please check the script URL.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

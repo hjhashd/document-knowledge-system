@@ -95,8 +95,8 @@ export function DocumentUpload() {
     }
   }, [])
 
-  const handleFiles = (files: FileList) => {
-    Array.from(files).forEach((file) => {
+  const handleFiles = async (files: FileList) => {
+    for (const file of Array.from(files)) {
       const isImage = file.type.includes("image")
       const newFile: UploadedFile = {
         id: Math.random().toString(36).substr(2, 9),
@@ -112,19 +112,22 @@ export function DocumentUpload() {
         } : undefined,
       }
 
-      // Create a proper URL for the uploaded file
-      const fileUrl = URL.createObjectURL(file)
-      const ocrText = `这是从文件 ${newFile.name} 中通过OCR技术提取的文本内容。
-
-文件处理已完成，包含 0 个实体和 0 个关系。
-
-处理时间：0秒
-
-您可以在右侧编辑器中对OCR识别的文本进行进一步的编辑和校对。`
-      
-      const navigateUrl = `/pdf-ocr-editor?fileName=${encodeURIComponent(newFile.name)}&fileUrl=${encodeURIComponent(fileUrl)}&ocrText=${encodeURIComponent(ocrText)}`
-      router.push(navigateUrl)
-    })
+      // 上传到后端，直接保存到 public/upload 目录
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        if (!res.ok) throw new Error('上传失败')
+        const data = await res.json()
+        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(data.docUrl)}&docName=${encodeURIComponent(data.fileName)}&fileName=${encodeURIComponent(newFile.name)}`
+        router.push(navigateUrl)
+      } catch (e) {
+        // 退化处理：保存失败则使用本地 Blob URL 仍可预览
+        const blobUrl = URL.createObjectURL(file)
+        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(blobUrl)}&docName=${encodeURIComponent(newFile.name)}&fileName=${encodeURIComponent(newFile.name)}`
+        router.push(navigateUrl)
+      }
+    }
   }
 
   const removeFile = (fileId: string) => {
