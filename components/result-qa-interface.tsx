@@ -58,7 +58,7 @@ export function ResultQAInterface() {
     setTimeout(() => {
       setIsAsking(false)
       setCurrentQuestion("")
-    }, 2000)
+    }, 500)
   }
 
   const handleSuggestedQuestion = (question: string) => {

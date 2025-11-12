@@ -43,9 +43,18 @@ export async function POST(req: NextRequest) {
     // 返回的路径不再包含唯一ID子目录
     const relativePath = `/upload/${encodeURIComponent(uniqueFileName)}`
     const base = process.env.NEXT_PUBLIC_NGROK_BASE_URL || ''
-    const docUrl = base ? `${base}${relativePath}` : relativePath
+    // 本地URL用于左侧预览
+    const localUrl = `http://localhost:3000${relativePath}`
+    // 公网URL用于OnlyOffice访问
+    const publicUrl = base ? `${base}/files${relativePath}` : localUrl
 
-    return NextResponse.json({ ok: true, fileName: uniqueFileName, savedPath: relativePath, docUrl })
+    return NextResponse.json({ 
+      ok: true, 
+      fileName: uniqueFileName, 
+      savedPath: relativePath, 
+      docUrl: publicUrl,
+      localUrl: localUrl 
+    })
   } catch (err: any) {
     return NextResponse.json({ ok: false, message: err?.message || String(err) }, { status: 500 })
   }

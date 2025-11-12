@@ -143,13 +143,13 @@ export function IntelligentQA() {
         timestamp: new Date(),
         sources: sampleSources,
         confidence: 0.92,
-        processingTime: Math.floor(Math.random() * 3000) + 1000,
+        processingTime: Math.floor(Math.random() * 1500) + 500,
         feedback: null,
       }
 
       setMessages((prev) => [...prev, assistantMessage])
       setIsLoading(false)
-    }, 2000)
+    }, 500)
   }
 
   const generateResponse = (query: string): string => {

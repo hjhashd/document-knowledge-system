@@ -92,7 +92,7 @@ export function TagsManagementInterface() {
 
   const handleGenerateAITags = async () => {
     setIsGeneratingTags(true)
-    // 模拟AI生成标签
+    // 减少模拟AI生成标签的延迟
     setTimeout(() => {
       const aiTags: Tag[] = [
         {
@@ -116,7 +116,7 @@ export function TagsManagementInterface() {
       ]
       setTags([...tags, ...aiTags])
       setIsGeneratingTags(false)
-    }, 2000)
+    }, 500)
   }
 
   return (

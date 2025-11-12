@@ -96,7 +96,7 @@ function PDFPreview({ fileUrl, fileName }: PDFPreviewProps) {
 
   return (
     <Card className={`h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      <CardHeader className="pb-3">
+      <CardHeader className={`${isFullscreen ? 'flex-shrink-0' : ''} pb-3`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <FileText className="w-5 h-5 text-primary" />
@@ -156,7 +156,8 @@ function PDFPreview({ fileUrl, fileName }: PDFPreviewProps) {
               style={{ 
                 transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
                 transformOrigin: 'center',
-                transition: 'transform 0.3s ease'
+                transition: 'transform 0.3s ease',
+                minHeight: '100%'
               }}
             />
           )}
@@ -208,10 +209,23 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
           editorRef.current.destroyEditor()
           editorRef.current = null
         }
+        
+        // 确保文档URL和回调URL都是公网可访问的
+        const publicDocUrl = docUrl.startsWith('http') ? docUrl : `${window.location.origin}${docUrl}`
+        const publicCallbackUrl = callbackUrl.startsWith('http') ? callbackUrl : `${window.location.origin}${callbackUrl}`
+        
         const config = {
-          document: { fileType: fileExt, key: `doc-${makeKeyFromUrl(docUrl)}`, title, url: docUrl },
+          document: { 
+            fileType: fileExt, 
+            key: `doc-${makeKeyFromUrl(docUrl)}`, 
+            title, 
+            url: publicDocUrl 
+          },
           documentType: 'word',
-          editorConfig: { mode: 'edit', callbackUrl: cbUrl }
+          editorConfig: { 
+            mode: 'edit', 
+            callbackUrl: publicCallbackUrl 
+          }
         }
         // @ts-ignore
         editorRef.current = new DocsAPI.DocEditor('onlyoffice-editor-container', config)
@@ -328,9 +342,10 @@ export default function PDFOCREditorPage() {
   // 从URL参数获取文件信息
   useEffect(() => {
     const fileName = searchParams.get('fileName') || "sample.pdf"
-    const fileUrlParam = searchParams.get('fileUrl') || ""
-    const docUrlParam = searchParams.get('docUrl') || ""
+    const fileUrlParam = searchParams.get('fileUrl') || "" // 本地URL用于左侧预览
+    const docUrlParam = searchParams.get('docUrl') || "" // 公网URL用于OnlyOffice访问
     const baseUrl = process.env.NEXT_PUBLIC_NGROK_BASE_URL || ""
+    // 使用nginx配置的/onlyoffice-callback路径
     const defaultCallbackUrl = baseUrl ? `${baseUrl}/onlyoffice-callback` : "/onlyoffice-callback"
     const docNameParam = searchParams.get('docName') || (docUrlParam ? (docUrlParam.split('/').pop() || "") : "")
     const cbUrlParam = searchParams.get('callbackUrl') || defaultCallbackUrl
@@ -349,10 +364,10 @@ export default function PDFOCREditorPage() {
     setDocName(docNameParam)
     setCallbackUrl(finalCallbackUrl)
 
-    // 模拟加载过程
+    // 减少模拟加载时间
     setTimeout(() => {
       setIsLoading(false)
-    }, 1000)
+    }, 300)
   }, [searchParams])
 
   if (isLoading) {
@@ -417,7 +432,7 @@ export default function PDFOCREditorPage() {
           {viewMode === 'split' && (
             <div className="h-full flex flex-col lg:flex-row gap-4 lg:gap-6">
               {/* 左侧 - PDF预览区域 */}
-              <div className="w-full lg:w-1/2 h-full transition-all duration-300">
+              <div className="w-full lg:w-1/2 h-full transition-all duration-300 border-r border-gray-200 overflow-auto">
                 <PDFPreview 
                   fileUrl={fileData.fileUrl} 
                   fileName={fileData.fileName}

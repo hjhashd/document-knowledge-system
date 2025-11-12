@@ -16,7 +16,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Upload,
   FileText,
-  ImageIcon,
   FileSpreadsheet,
   Presentation,
   Globe,
@@ -24,27 +23,17 @@ import {
   Settings,
   Zap,
 } from "lucide-react"
+import { uploadPdf } from "@/services/pdf"
 
 interface UploadedFile {
   id: string
   name: string
   size: number
   type: string
-  preprocessingSettings?: {
-    enableOCR: boolean
-    enableDeskew: boolean
-    enableDenoise: boolean
-    enableBinarization: boolean
-    enableContrastEnhancement: boolean
-  }
 }
 
 const supportedFormats = [
   { type: "PDF", icon: FileText, description: "PDF文档（文本型、扫描件、混合型）" },
-  { type: "图像", icon: ImageIcon, description: "PNG、JPEG、TIFF、BMP格式图像" },
-  { type: "Office", icon: FileSpreadsheet, description: "DOCX、PPTX、XLSX文档" },
-  { type: "网页", icon: Globe, description: "HTML文档或URL抓取" },
-  { type: "文本", icon: FileText, description: "TXT、RTF、ODT等文本格式" },
 ]
 
 const processingTemplates = [
@@ -66,13 +55,6 @@ export function DocumentUpload() {
     enableKnowledgeGraph: true,
     confidenceThreshold: 0.8,
     customInstructions: "",
-    imagePreprocessing: {
-      enableOCR: true,
-      enableDeskew: false,
-      enableDenoise: false,
-      enableBinarization: false,
-      enableContrastEnhancement: false,
-    },
   })
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -97,34 +79,34 @@ export function DocumentUpload() {
 
   const handleFiles = async (files: FileList) => {
     for (const file of Array.from(files)) {
-      const isImage = file.type.includes("image")
       const newFile: UploadedFile = {
         id: Math.random().toString(36).substr(2, 9),
         name: file.name,
         size: file.size,
         type: file.type,
-        preprocessingSettings: isImage ? {
-          enableOCR: extractionSettings.imagePreprocessing.enableOCR,
-          enableDeskew: extractionSettings.imagePreprocessing.enableDeskew,
-          enableDenoise: extractionSettings.imagePreprocessing.enableDenoise,
-          enableBinarization: extractionSettings.imagePreprocessing.enableBinarization,
-          enableContrastEnhancement: extractionSettings.imagePreprocessing.enableContrastEnhancement,
-        } : undefined,
       }
 
       // 上传到后端，直接保存到 public/upload 目录
       const formData = new FormData()
       formData.append('file', file)
+
+      // 并行上传一份到外部后端（不影响当前流程）
+      // 使用已有 axios 封装与环境变量中的基础地址
+      uploadPdf(file).catch((err) => {
+        // 记录错误但不打断原有上传与导航逻辑
+        console.warn('远程上传失败:', err)
+      })
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         if (!res.ok) throw new Error('上传失败')
         const data = await res.json()
-        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(data.docUrl)}&docName=${encodeURIComponent(data.fileName)}&fileName=${encodeURIComponent(newFile.name)}`
+        // 使用公网URL作为docUrl，本地URL作为fileUrl
+        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(data.docUrl)}&fileUrl=${encodeURIComponent(data.localUrl)}&docName=${encodeURIComponent(data.fileName)}&fileName=${encodeURIComponent(newFile.name)}`
         router.push(navigateUrl)
       } catch (e) {
         // 退化处理：保存失败则使用本地 Blob URL 仍可预览
         const blobUrl = URL.createObjectURL(file)
-        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(blobUrl)}&docName=${encodeURIComponent(newFile.name)}&fileName=${encodeURIComponent(newFile.name)}`
+        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(blobUrl)}&fileUrl=${encodeURIComponent(blobUrl)}&docName=${encodeURIComponent(newFile.name)}&fileName=${encodeURIComponent(newFile.name)}`
         router.push(navigateUrl)
       }
     }
@@ -136,9 +118,6 @@ export function DocumentUpload() {
 
   const getFileIcon = (type: string) => {
     if (type.includes("pdf")) return FileText
-    if (type.includes("image")) return ImageIcon
-    if (type.includes("sheet") || type.includes("excel")) return FileSpreadsheet
-    if (type.includes("presentation") || type.includes("powerpoint")) return Presentation
     return FileText
   }
 
@@ -226,7 +205,7 @@ export function DocumentUpload() {
                   multiple
                   className="hidden"
                   onChange={(e) => e.target.files && handleFiles(e.target.files)}
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.tiff,.bmp,.html"
+                  accept=".pdf"
                 />
                 <p className="text-xs text-muted-foreground mt-2">最大文件大小: 100MB</p>
               </div>
@@ -292,25 +271,7 @@ export function DocumentUpload() {
                                 <span>关系: {file.extractedRelations}</span>
                                 <span>用时: {file.processingTime}</span>
                               </div>
-                              {file.preprocessingSettings && (
-                                <div className="flex flex-wrap gap-1 text-xs">
-                                  {file.preprocessingSettings.enableOCR && (
-                                    <Badge variant="secondary" className="text-xs">OCR</Badge>
-                                  )}
-                                  {file.preprocessingSettings.enableDeskew && (
-                                    <Badge variant="secondary" className="text-xs">纠偏</Badge>
-                                  )}
-                                  {file.preprocessingSettings.enableDenoise && (
-                                    <Badge variant="secondary" className="text-xs">降噪</Badge>
-                                  )}
-                                  {file.preprocessingSettings.enableBinarization && (
-                                    <Badge variant="secondary" className="text-xs">二值化</Badge>
-                                  )}
-                                  {file.preprocessingSettings.enableContrastEnhancement && (
-                                    <Badge variant="secondary" className="text-xs">对比度</Badge>
-                                  )}
-                                </div>
-                              )}
+
                             </div>
                           )}
                         </div>
@@ -450,109 +411,7 @@ export function DocumentUpload() {
             </CardContent>
           </Card>
 
-          {/* Image Preprocessing Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <ImageIcon className="w-5 h-5 text-primary" />
-                <span>图片预处理设置</span>
-              </CardTitle>
-              <CardDescription>配置图像文档的预处理选项（仅对图像文件生效）</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="enable-ocr"
-                    checked={extractionSettings.imagePreprocessing.enableOCR}
-                    onCheckedChange={(checked) =>
-                      setExtractionSettings((prev) => ({
-                        ...prev,
-                        imagePreprocessing: {
-                          ...prev.imagePreprocessing,
-                          enableOCR: checked as boolean,
-                        },
-                      }))
-                    }
-                  />
-                  <Label htmlFor="enable-ocr">启用OCR文字识别</Label>
-                </div>
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="enable-deskew"
-                    checked={extractionSettings.imagePreprocessing.enableDeskew}
-                    onCheckedChange={(checked) =>
-                      setExtractionSettings((prev) => ({
-                        ...prev,
-                        imagePreprocessing: {
-                          ...prev.imagePreprocessing,
-                          enableDeskew: checked as boolean,
-                        },
-                      }))
-                    }
-                  />
-                  <Label htmlFor="enable-deskew">启用图像纠偏（自动校正倾斜）</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="enable-denoise"
-                    checked={extractionSettings.imagePreprocessing.enableDenoise}
-                    onCheckedChange={(checked) =>
-                      setExtractionSettings((prev) => ({
-                        ...prev,
-                        imagePreprocessing: {
-                          ...prev.imagePreprocessing,
-                          enableDenoise: checked as boolean,
-                        },
-                      }))
-                    }
-                  />
-                  <Label htmlFor="enable-denoise">启用图像降噪</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="enable-binarization"
-                    checked={extractionSettings.imagePreprocessing.enableBinarization}
-                    onCheckedChange={(checked) =>
-                      setExtractionSettings((prev) => ({
-                        ...prev,
-                        imagePreprocessing: {
-                          ...prev.imagePreprocessing,
-                          enableBinarization: checked as boolean,
-                        },
-                      }))
-                    }
-                  />
-                  <Label htmlFor="enable-binarization">启用二值化处理</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="enable-contrast-enhancement"
-                    checked={extractionSettings.imagePreprocessing.enableContrastEnhancement}
-                    onCheckedChange={(checked) =>
-                      setExtractionSettings((prev) => ({
-                        ...prev,
-                        imagePreprocessing: {
-                          ...prev.imagePreprocessing,
-                          enableContrastEnhancement: checked as boolean,
-                        },
-                      }))
-                    }
-                  />
-                  <Label htmlFor="enable-contrast-enhancement">启用对比度增强</Label>
-                </div>
-              </div>
-
-              <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-                <p><strong>提示：</strong>这些预处理选项仅对图像文件（PNG、JPEG、TIFF、BMP等）生效。</p>
-                <p>OCR文字识别默认启用，其他预处理选项可根据需要选择。</p>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="queue" className="space-y-6">

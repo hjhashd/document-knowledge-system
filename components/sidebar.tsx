@@ -36,6 +36,9 @@ import {
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import dynamic from "next/dynamic";
+
+const LazyParsingPage = dynamic(() => import("@/components/document-parsing-interface"));
 
 const navigation = [
   { name: "仪表板", href: "/", icon: BarChart3 },
@@ -46,7 +49,7 @@ const navigation = [
     icon: Layers,
     items: [
       { name: "文档识别", href: "/upload", icon: Eye },
-      { name: "文档解析", href: "/parsing", icon: FileCheck },
+      { name: "文档解析", href: "/parsing", icon: FileCheck, component: LazyParsingPage },
       { name: "信息抽取", href: "/extraction", icon: Search },
       { name: "格式转换", href: "/format-conversion", icon: Shuffle },
       { name: "文档比对", href: "/comparison", icon: GitCompare },
