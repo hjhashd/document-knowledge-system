@@ -217,7 +217,7 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
         const config = {
           document: { 
             fileType: fileExt, 
-            key: `doc-${makeKeyFromUrl(docUrl)}`, 
+            key: `doc-${makeKeyFromUrl(docUrl)}-${Date.now()}`, 
             title, 
             url: publicDocUrl 
           },
@@ -238,7 +238,7 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
 
     // 加载 DocsAPI 脚本（来源于文档服务器）
     // 如需修改地址，可通过 query 参数 docsApi 指定
-    const defaultApi = 'https://ai.faithindata.com.cn/office/web-apps/apps/api/documents/api.js'
+    const defaultApi = '/office/web-apps/apps/api/documents/api.js'
     const docsApi = defaultApi
     // 已加载则直接初始化
     // @ts-ignore
@@ -342,19 +342,18 @@ export default function PDFOCREditorPage() {
   // 从URL参数获取文件信息
   useEffect(() => {
     const fileName = searchParams.get('fileName') || "sample.pdf"
-    const fileUrlParam = searchParams.get('fileUrl') || "" // 本地URL用于左侧预览
-    const docUrlParam = searchParams.get('docUrl') || "" // 公网URL用于OnlyOffice访问
-    const baseUrl = process.env.NEXT_PUBLIC_NGROK_BASE_URL || ""
-    // 使用nginx配置的/onlyoffice-callback路径
-    const defaultCallbackUrl = baseUrl ? `${baseUrl}/onlyoffice-callback` : "/onlyoffice-callback"
+    const fileUrlParam = searchParams.get('fileUrl') || ""
+    const docUrlParam = searchParams.get('docUrl') || ""
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ""
+    const dsBaseUrl = process.env.NEXT_PUBLIC_DS_BASE_URL || baseUrl
+    const defaultCallbackUrl = `${dsBaseUrl}/onlyoffice-callback`
     const docNameParam = searchParams.get('docName') || (docUrlParam ? (docUrlParam.split('/').pop() || "") : "")
     const cbUrlParam = searchParams.get('callbackUrl') || defaultCallbackUrl
     
     // 将自定义文件名添加到回调 URL 中
     const finalCallbackUrl = docNameParam ? `${cbUrlParam}${cbUrlParam.includes('?') ? '&' : '?'}fileName=${encodeURIComponent(docNameParam)}` : cbUrlParam
 
-    // 如果没有fileUrl，则使用docUrl作为预览URL
-    const finalFileUrl = fileUrlParam || docUrlParam || "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+    const finalFileUrl = fileUrlParam || docUrlParam || `${baseUrl}/files/upload/dummy.pdf`
 
     setFileData({
       fileName,
@@ -367,7 +366,7 @@ export default function PDFOCREditorPage() {
     // 减少模拟加载时间
     setTimeout(() => {
       setIsLoading(false)
-    }, 300)
+    }, 1000)
   }, [searchParams])
 
   if (isLoading) {

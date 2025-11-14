@@ -56,6 +56,8 @@
     "react-hook-form": "^7.60.0",
     "react-pdf": "^10.2.0",
     "react-resizable-panels": "^2.1.7",
+    "jszip": "^3.10.1",
+    "fast-xml-parser": "^4.5.0",
     "recharts": "latest",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.5.5",

@@ -71,14 +71,13 @@ export async function POST(req: NextRequest) {
 
       await fs.promises.writeFile(filePath, buf)
       
-      // 构建公网可访问的文件URL
-      const baseUrl = process.env.NEXT_PUBLIC_NGROK_BASE_URL || ''
-      const publicUrl = baseUrl ? `${baseUrl}/files/save/${encodeURIComponent(fileName)}` : `http://localhost:3000/save/${encodeURIComponent(fileName)}`
-      // 本地URL用于左侧预览
-      const localUrl = `http://localhost:3000/save/${encodeURIComponent(fileName)}`
+      const publicBase = process.env.NEXT_PUBLIC_BASE_URL || ''
+      const dsBase = process.env.NEXT_PUBLIC_DS_BASE_URL || publicBase
+      const localUrl = `${publicBase}/save/${encodeURIComponent(fileName)}`
+      const docUrl = `${dsBase}/files/save/${encodeURIComponent(fileName)}`
       
       // 按 OnlyOffice 要求返回 { error: 0 } 表示已处理
-      return NextResponse.json({ error: 0, ok: true, fileName, savedPath: `/save/${fileName}`, publicUrl, localUrl })
+      return NextResponse.json({ error: 0, ok: true, fileName, savedPath: `/save/${fileName}`, docUrl, localUrl })
     }
 
     // 其他状态返回透传信息，方便调试

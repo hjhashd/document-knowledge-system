@@ -78,6 +78,7 @@ export function DocumentUpload() {
   }, [])
 
   const handleFiles = async (files: FileList) => {
+
     for (const file of Array.from(files)) {
       const newFile: UploadedFile = {
         id: Math.random().toString(36).substr(2, 9),
@@ -93,7 +94,6 @@ export function DocumentUpload() {
       // 并行上传一份到外部后端（不影响当前流程）
       // 使用已有 axios 封装与环境变量中的基础地址
       uploadPdf(file).catch((err) => {
-        // 记录错误但不打断原有上传与导航逻辑
         console.warn('远程上传失败:', err)
       })
       try {
@@ -104,7 +104,6 @@ export function DocumentUpload() {
         const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(data.docUrl)}&fileUrl=${encodeURIComponent(data.localUrl)}&docName=${encodeURIComponent(data.fileName)}&fileName=${encodeURIComponent(newFile.name)}`
         router.push(navigateUrl)
       } catch (e) {
-        // 退化处理：保存失败则使用本地 Blob URL 仍可预览
         const blobUrl = URL.createObjectURL(file)
         const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(blobUrl)}&fileUrl=${encodeURIComponent(blobUrl)}&docName=${encodeURIComponent(newFile.name)}&fileName=${encodeURIComponent(newFile.name)}`
         router.push(navigateUrl)
