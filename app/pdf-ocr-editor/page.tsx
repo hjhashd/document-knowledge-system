@@ -196,6 +196,24 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
     const title = docName || docUrl.split('/').pop() || `文档-${Date.now()}`
     const cbUrl = callbackUrl || '/onlyoffice-callback'
 
+    // --- 开始：添加这段新逻辑 ---
+
+    // 1. 定义可编辑的类型
+    const EDITABLE_TYPES = ['docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt']
+    // 2. 检查当前文件是否可编辑
+   const isEditable = EDITABLE_TYPES.includes(fileExt);
+// [!! 修复 !!] 确保 PDF 也使用 'edit' 模式来触发转换
+const editorMode = (isEditable || fileExt === 'pdf') ? 'edit' : 'view';
+
+    // 4. 动态设置编辑器类型
+    let docType = 'word'; // 默认是 Word
+    if (['xlsx', 'xls', 'csv'].includes(fileExt)) {
+      docType = 'spreadsheet';
+    } else if (['pptx', 'ppt'].includes(fileExt)) {
+      docType = 'presentation';
+    }
+    // --- 结束：新逻辑 ---
+    
     const init = () => {
       try {
         // @ts-ignore
@@ -214,19 +232,19 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
         const publicDocUrl = docUrl.startsWith('http') ? docUrl : `${window.location.origin}${docUrl}`
         const publicCallbackUrl = callbackUrl.startsWith('http') ? callbackUrl : `${window.location.origin}${callbackUrl}`
         
-        const config = {
-          document: { 
-            fileType: fileExt, 
-            key: `doc-${makeKeyFromUrl(docUrl)}`, 
-            title, 
-            url: publicDocUrl 
-          },
-          documentType: 'word',
-          editorConfig: { 
-            mode: 'edit', 
-            callbackUrl: publicCallbackUrl 
-          }
+       const config = {
+        document: {
+          fileType: fileExt,
+          key: `doc-${makeKeyFromUrl(docUrl)}-${Date.now()}`, // 确保你有 makeKeyFromUrl 函数
+          title,
+          url: publicDocUrl // (这里就是我之前打错 "_" 符号的地方，保持这行原样)
+        },
+        documentType: docType, // <-- ★★★ 修改点 1：使用变量 docType
+        editorConfig: {
+          mode: editorMode, // <-- ★★★ 修改点 2：使用变量 editorMode
+          callbackUrl: publicCallbackUrl
         }
+      };
         // @ts-ignore
         editorRef.current = new DocsAPI.DocEditor('onlyoffice-editor-container', config)
         setIsLoading(false)
@@ -238,7 +256,7 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
 
     // 加载 DocsAPI 脚本（来源于文档服务器）
     // 如需修改地址，可通过 query 参数 docsApi 指定
-    const defaultApi = 'https://ai.faithindata.com.cn/office/web-apps/apps/api/documents/api.js'
+    const defaultApi = process.env.NEXT_PUBLIC_ONLYOFFICE_API_URL || '/office/web-apps/apps/api/documents/api.js'
     const docsApi = defaultApi
     // 已加载则直接初始化
     // @ts-ignore
@@ -254,8 +272,22 @@ function OnlyOfficeEditor({ docUrl, docName, callbackUrl }: OnlyOfficeEditorProp
       scriptEl.setAttribute('data-onlyoffice-api', 'true')
       scriptEl.onload = init
       scriptEl.onerror = () => {
-        setError('无法加载 OnlyOffice API 脚本')
-        setIsLoading(false)
+        const fallback = '/office/web-apps/apps/api/documents/api.js'
+        if (docsApi !== fallback) {
+          const s2 = document.createElement('script')
+          s2.type = 'text/javascript'
+          s2.src = fallback
+          s2.setAttribute('data-onlyoffice-api', 'true')
+          s2.onload = init
+          s2.onerror = () => {
+            setError('无法加载 OnlyOffice API 脚本')
+            setIsLoading(false)
+          }
+          document.head.appendChild(s2)
+        } else {
+          setError('无法加载 OnlyOffice API 脚本')
+          setIsLoading(false)
+        }
       }
       document.head.appendChild(scriptEl)
     } else {
@@ -325,7 +357,8 @@ export default function PDFOCREditorPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'split' | 'pdf' | 'editor'>('split')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-
+// ★ 新增一个判断：
+  const isPdf = docName.toLowerCase().endsWith('.pdf')
   // 监听侧边栏切换事件
   useEffect(() => {
     const handleToggleSidebar = () => {
@@ -342,19 +375,15 @@ export default function PDFOCREditorPage() {
   // 从URL参数获取文件信息
   useEffect(() => {
     const fileName = searchParams.get('fileName') || "sample.pdf"
-    const fileUrlParam = searchParams.get('fileUrl') || "" // 本地URL用于左侧预览
-    const docUrlParam = searchParams.get('docUrl') || "" // 公网URL用于OnlyOffice访问
-    const baseUrl = process.env.NEXT_PUBLIC_NGROK_BASE_URL || ""
-    // 使用nginx配置的/onlyoffice-callback路径
-    const defaultCallbackUrl = baseUrl ? `${baseUrl}/onlyoffice-callback` : "/onlyoffice-callback"
+    const fileUrlParam = searchParams.get('fileUrl') || ""
+    const docUrlParam = searchParams.get('docUrl') || ""
     const docNameParam = searchParams.get('docName') || (docUrlParam ? (docUrlParam.split('/').pop() || "") : "")
-    const cbUrlParam = searchParams.get('callbackUrl') || defaultCallbackUrl
+    const cbUrlParam = searchParams.get('callbackUrl') || "/onlyoffice-callback"
     
     // 将自定义文件名添加到回调 URL 中
     const finalCallbackUrl = docNameParam ? `${cbUrlParam}${cbUrlParam.includes('?') ? '&' : '?'}fileName=${encodeURIComponent(docNameParam)}` : cbUrlParam
 
-    // 如果没有fileUrl，则使用docUrl作为预览URL
-    const finalFileUrl = fileUrlParam || docUrlParam || "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+    const finalFileUrl = fileUrlParam || docUrlParam || `/files/upload/dummy.pdf`
 
     setFileData({
       fileName,
@@ -364,10 +393,33 @@ export default function PDFOCREditorPage() {
     setDocName(docNameParam)
     setCallbackUrl(finalCallbackUrl)
 
+    // 判断是否为 Word 文档 (或 Excel/PPT 等未来可能支持的格式)
+    const isOfficeDoc = docNameParam.toLowerCase().endsWith('.docx') || 
+                        docNameParam.toLowerCase().endsWith('.xlsx') || 
+                        docNameParam.toLowerCase().endsWith('.pptx');
+                        
+    if (isOfficeDoc) {
+      // 如果是 Office 文档，强制使用 'editor' 视图
+      setViewMode('editor');
+    } else {
+      // 否则 (PDF)，使用默认的 'split' 视图
+      setViewMode('split');
+    }
+
+    // ==========================================================
+  // ★★★ 在这里添加打印语句 ★★★
+  // ==========================================================
+  console.log("OnlyOffice 最终收到的参数:", {
+    fileUrl_For_PDFPreview: finalFileUrl, // 这个给左侧 PDF 预览
+    docUrl_For_OnlyOffice: docUrlParam,   // ★ 这个给 OnlyOffice 编辑器
+    callbackUrl_For_OnlyOffice: finalCallbackUrl // ★ 这个给 OnlyOffice 回调
+  });
+  // ==========================================================
+
     // 减少模拟加载时间
     setTimeout(() => {
       setIsLoading(false)
-    }, 300)
+    }, 1000)
   }, [searchParams])
 
   if (isLoading) {
@@ -431,21 +483,42 @@ export default function PDFOCREditorPage() {
           {/* 分屏视图 */}
           {viewMode === 'split' && (
             <div className="h-full flex flex-col lg:flex-row gap-4 lg:gap-6">
-              {/* 左侧 - PDF预览区域 */}
+              
+              {/* ★★★ 修改左侧 - PDF预览区域 ★★★ */}
               <div className="w-full lg:w-1/2 h-full transition-all duration-300 border-r border-gray-200 overflow-auto">
-                <PDFPreview 
-                  fileUrl={fileData.fileUrl} 
-                  fileName={fileData.fileName}
-                />
+                
+                {isPdf ? (
+                  // 1. 如果是 PDF，正常显示
+                  <PDFPreview 
+                    fileUrl={fileData.fileUrl} 
+                    fileName={fileData.fileName}
+                  />
+                ) : (
+                  // 2. 如果不是 PDF (e.g. .docx)，显示一个提示，而不是加载 iframe
+                  <Card className="h-full flex items-center justify-center bg-gray-50">
+                    <CardContent className="text-center p-6">
+                      <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="font-semibold text-lg">不支持分屏预览</h3>
+                      <p className="text-muted-foreground text-sm mt-2">此文件类型 (.docx) 无法在左侧预览。<br/>请使用 "编辑" 视图进行操作。</p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
-              {/* 右侧 - OnlyOffice编辑器区域 */}
+              {/* 右侧 - OnlyOffice编辑器区域 (这部分我们上次已经改好了，保持不变) */}
               <div className="w-full lg:w-1/2 h-full transition-all duration-300">
-                <OnlyOfficeEditor 
-                  docUrl={docUrl}
-                  docName={docName}
-                  callbackUrl={callbackUrl}
-                />
+                {isPdf ? (
+                  <PDFPreview 
+                    fileUrl={fileData.fileUrl} 
+                    fileName={fileData.fileName}
+                  />
+                ) : (
+                  <OnlyOfficeEditor 
+                    docUrl={docUrl}
+                    docName={docName}
+                    callbackUrl={callbackUrl}
+                  />
+                )}
               </div>
             </div>
           )}

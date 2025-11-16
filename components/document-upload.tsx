@@ -34,6 +34,7 @@ interface UploadedFile {
 
 const supportedFormats = [
   { type: "PDF", icon: FileText, description: "PDF文档（文本型、扫描件、混合型）" },
+  { type: "Word", icon: FileText, description: "Word文档（.doc, .docx）" },
 ]
 
 const processingTemplates = [
@@ -78,6 +79,7 @@ export function DocumentUpload() {
   }, [])
 
   const handleFiles = async (files: FileList) => {
+
     for (const file of Array.from(files)) {
       const newFile: UploadedFile = {
         id: Math.random().toString(36).substr(2, 9),
@@ -93,18 +95,15 @@ export function DocumentUpload() {
       // 并行上传一份到外部后端（不影响当前流程）
       // 使用已有 axios 封装与环境变量中的基础地址
       uploadPdf(file).catch((err) => {
-        // 记录错误但不打断原有上传与导航逻辑
         console.warn('远程上传失败:', err)
       })
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         if (!res.ok) throw new Error('上传失败')
         const data = await res.json()
-        // 使用公网URL作为docUrl，本地URL作为fileUrl
-        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(data.docUrl)}&fileUrl=${encodeURIComponent(data.localUrl)}&docName=${encodeURIComponent(data.fileName)}&fileName=${encodeURIComponent(newFile.name)}`
+        const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(data.docUrl)}&fileUrl=${encodeURIComponent(data.localUrl)}&docName=${encodeURIComponent(data.fileName)}&fileName=${encodeURIComponent(newFile.name)}&callbackUrl=${encodeURIComponent(data.callbackUrl)}`
         router.push(navigateUrl)
       } catch (e) {
-        // 退化处理：保存失败则使用本地 Blob URL 仍可预览
         const blobUrl = URL.createObjectURL(file)
         const navigateUrl = `/pdf-ocr-editor?docUrl=${encodeURIComponent(blobUrl)}&fileUrl=${encodeURIComponent(blobUrl)}&docName=${encodeURIComponent(newFile.name)}&fileName=${encodeURIComponent(newFile.name)}`
         router.push(navigateUrl)
@@ -118,6 +117,7 @@ export function DocumentUpload() {
 
   const getFileIcon = (type: string) => {
     if (type.includes("pdf")) return FileText
+    if (type.includes("word") || type.includes("document") || type.includes("doc")) return FileText
     return FileText
   }
 
@@ -192,7 +192,7 @@ export function DocumentUpload() {
               >
                 <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">上传您的文档</h3>
-                <p className="text-muted-foreground mb-4">支持 PDF、图像、Office 文档等多种格式</p>
+                <p className="text-muted-foreground mb-4">支持 PDF、Word 文档等多种格式</p>
                 <Button
                   onClick={() => document.getElementById("file-upload")?.click()}
                   className="bg-primary hover:bg-primary/90"
@@ -205,7 +205,7 @@ export function DocumentUpload() {
                   multiple
                   className="hidden"
                   onChange={(e) => e.target.files && handleFiles(e.target.files)}
-                  accept=".pdf"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 />
                 <p className="text-xs text-muted-foreground mt-2">最大文件大小: 100MB</p>
               </div>

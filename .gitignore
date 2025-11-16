@@ -16,8 +16,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
-.env*
 
 # vercel
 .vercel
@@ -26,6 +24,3 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# 排除上传和保存目录
-/public/upload/
-/public/save/
